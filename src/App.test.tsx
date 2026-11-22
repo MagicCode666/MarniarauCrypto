@@ -1,10 +1,12 @@
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./lib/supabase', () => ({ supabase: { auth: { signOut: vi.fn() } } }))
 const useAuth = vi.fn()
 vi.mock('./auth/AuthProvider', () => ({ useAuth: () => useAuth() }))
+const closes = vi.fn()
+vi.mock('./hooks/useCloses', () => ({ useCloses: () => closes() }))
 const useMarket = vi.fn()
 vi.mock('./hooks/useMarket', () => ({ useMarket: () => useMarket() }))
 
@@ -32,6 +34,10 @@ const bitcoin = {
 }
 
 describe('routes', () => {
+  beforeEach(() =>
+    closes.mockReturnValue({ bitcoin: Array.from({ length: 60 }, (_, i) => 10 + i) }),
+  )
+
   it('envoie un visiteur non connecté vers la connexion', () => {
     useAuth.mockReturnValue({ session: null, loading: false })
     renderAt('/')
@@ -50,6 +56,24 @@ describe('routes', () => {
     expect(screen.getByText(/outil éducatif/)).toBeTruthy()
     expect(screen.getByRole('link', { name: 'CoinGecko' })).toBeTruthy()
     expect(screen.queryByText(/Données anciennes/)).toBeNull()
+  })
+
+  it('propose les onglets Prix et Signaux et affiche l’écran Signaux', () => {
+    useAuth.mockReturnValue({ session: { user: { id: 'u1' } }, loading: false })
+    useMarket.mockReturnValue({
+      status: 'ready',
+      market: { coins: [bitcoin], updatedAt: bitcoin.updatedAt },
+    })
+    renderAt('/signaux')
+    expect(screen.getByRole('link', { name: 'Prix' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Signaux' }).getAttribute('aria-current')).toBe('page')
+    expect(screen.getByRole('columnheader', { name: /^Signal/ })).toBeTruthy()
+  })
+
+  it('renvoie un visiteur non connecté de /signaux vers la connexion', () => {
+    useAuth.mockReturnValue({ session: null, loading: false })
+    renderAt('/signaux')
+    expect(screen.getByRole('button', { name: 'Se connecter' })).toBeTruthy()
   })
 
   it('signale des données anciennes quand la collecte est arrêtée', () => {

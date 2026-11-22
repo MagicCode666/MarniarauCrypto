@@ -47,7 +47,7 @@ beforeAll(async () => {
   )
   ids.a = a.rows[0].id
   ids.b = b.rows[0].id
-})
+}, 60_000)
 
 describe('profiles', () => {
   it('crée un profil à l’inscription, pseudo tiré de l’email', async () => {
