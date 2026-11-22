@@ -4,10 +4,10 @@ MarniarauCrypto est une PWA familiale (PC et mobile) de suivi, d'analyse et de s
 Outil éducatif : les signaux et simulations ne sont pas des conseils financiers.
 
 ```
-Dépôt privé MagicCode666/MarniarauCrypto (code, CI, migrations SQL)
+Dépôt public MagicCode666/MarniarauCrypto (code, CI, migrations SQL)
    │ build + publication (.github/workflows/deploy.yml)
    ▼
-Dépôt public MarniarauCrypto-dist ──► PWA servie par GitHub Pages (mise à jour automatique)
+GitHub Pages ──► PWA (mise à jour automatique)
                                           │
 Collecteur (Cloudflare Worker, cron) ──► CoinGecko        ▼
         │                              Supabase (projet dédié)
@@ -34,7 +34,7 @@ Collecteur (Cloudflare Worker, cron) ──► CoinGecko        ▼
 
 ## Jalons
 
-0. Fondations : projet Supabase, structure, CI, dépôt de distribution, coque PWA, connexion.
+0. Fondations : projet Supabase, structure, CI, publication GitHub Pages, coque PWA, connexion.
 1. Prix en direct : collecteur, table `prices`, tableau de bord.
 2. Indicateurs et signaux en TypeScript.
 3. Portefeuille personnel et transactions.
