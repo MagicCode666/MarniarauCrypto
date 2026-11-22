@@ -1,17 +1,37 @@
-# Config locale de l'assistant
-.claude/
+# Dépendances
+node_modules/
 
-# Logs
-*.log
+# Build
+dist/
+dev-dist/
+*.tsbuildinfo
 
-# Base SQLite locale (recréée au démarrage)
+# Secrets et environnement
+.env
+.env.*
+!.env.example
+
+# Supabase local
+supabase/.branches/
+supabase/.temp/
+
+# Base SQLite et logs (prototype Python)
 *.db
 *.db-journal
-
-# Python
+*.log
 __pycache__/
 *.pyc
 
-# Frontend
-node_modules/
-dist/
+# Éditeurs et système
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Outils locaux
+.claude/
+
+# Collecteur (Cloudflare Worker)
+worker/.dev.vars
+worker/.wrangler/

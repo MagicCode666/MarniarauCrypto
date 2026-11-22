@@ -1,27 +1,17 @@
 # MarniarauCrypto
 
-Application de suivi, d'analyse et de simulation d'investissement crypto pour débutants. Outil éducatif : les signaux et simulations ne constituent pas des conseils financiers.
+PWA familiale de suivi, d'analyse et de simulation d'investissement crypto, pour apprendre.
+**Outil éducatif : les signaux et simulations ne constituent pas des conseils financiers.**
 
-- Backend : Python, FastAPI, SQLite
-- Frontend : React, Vite, recharts, Tailwind CSS
-- Données : CoinGecko et alternative.me (gratuits, sans clé API)
+Architecture et jalons : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Mise en route : [docs/MISE-EN-ROUTE.md](docs/MISE-EN-ROUTE.md).
 
-## Lancement
-
-Backend (http://localhost:8000) :
+## Développement
 
 ```bash
-cd marniaraucrypto/backend
-pip install -r requirements.txt
-python -m uvicorn main:app --reload --port 8000
-```
-
-Frontend (http://localhost:5173) :
-
-```bash
-cd marniaraucrypto/frontend
 npm install
-npm run dev
+cp .env.example .env.local   # puis renseigner l'URL et la clé anon du projet Supabase
+npm run dev                  # http://localhost:5173
+npm run lint && npm run typecheck && npm test && npm run build
 ```
 
-Collecte horaire des prix (optionnelle) : `python collector.py` dans `backend/`.
+Commits au format Conventional Commits (vérifié par commitlint).
