@@ -29,6 +29,20 @@ npx wrangler deploy
 - `SUPABASE_URL` est une variable publique de `wrangler.toml`.
 - Le Worker n'expose rien en HTTP. Le cron est défini dans `wrangler.toml` (`*/5 * * * *`).
 
+## Clé CoinGecko (nécessaire depuis un Worker)
+
+Sans clé, CoinGecko limite par adresse IP, et les Workers Cloudflare partagent leurs adresses avec
+beaucoup d'autres utilisateurs : le collecteur reçoit alors des refus 429 en continu (constaté le
+22/11/2026, alors que le même appel passait depuis un PC). Avec une clé **Demo** gratuite, le quota
+se compte par clé.
+
+1. Créer un compte gratuit sur coingecko.com, puis Developer Dashboard > Add New Key (offre Demo).
+2. `cd worker` puis `npx wrangler secret put COINGECKO_API_KEY` (Wrangler demande la clé à la saisie).
+
+La clé reste côté Worker, jamais dans l'application. Quota Demo : environ 10 000 appels par mois ;
+à un passage toutes les 5 minutes, le collecteur en consomme environ 8 700 (un appel par passage,
+plus le rattrapage initial de l'historique). Surveiller, et passer à 10 minutes si besoin.
+
 ## Surveiller
 
 ```

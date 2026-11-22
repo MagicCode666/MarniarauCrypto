@@ -8,7 +8,12 @@ import {
   type PriceRow,
 } from './logic'
 
-export type Env = { SUPABASE_URL: string; SUPABASE_SERVICE_ROLE_KEY: string }
+export type Env = {
+  SUPABASE_URL: string
+  SUPABASE_SERVICE_ROLE_KEY: string
+  /** Clé « Demo » gratuite de CoinGecko : le quota se compte par clé et non par adresse IP. */
+  COINGECKO_API_KEY?: string
+}
 
 export type Deps = {
   fetch: typeof fetch
@@ -21,12 +26,21 @@ export type Report = {
   prices: number
   backfilled: string[]
   coingeckoError: number | null
+  /** Début de la réponse de CoinGecko en cas de refus, pour comprendre la cause. */
+  coingeckoDetail?: string
 }
 
 const COINGECKO = 'https://api.coingecko.com/api/v3'
 const BACKFILL_PER_RUN = 2
 const BACKFILL_SPACING_MS = 6000
-const HEADERS = { accept: 'application/json', 'user-agent': 'MarniarauCrypto-collector/1.0' }
+function coingeckoHeaders(env: Env): Record<string, string> {
+  const headers: Record<string, string> = {
+    accept: 'application/json',
+    'user-agent': 'MarniarauCrypto-collector/1.0',
+  }
+  if (env.COINGECKO_API_KEY) headers['x-cg-demo-api-key'] = env.COINGECKO_API_KEY
+  return headers
+}
 
 function supabase(env: Env, f: typeof fetch) {
   const base = `${env.SUPABASE_URL}/rest/v1`
@@ -78,11 +92,12 @@ export async function collect(env: Env, deps: Deps): Promise<Report> {
   const ids = coins.map((c) => c.coin_id).join(',')
   const markets = await deps.fetch(
     `${COINGECKO}/coins/markets?vs_currency=eur&ids=${ids}&per_page=250&sparkline=false&price_change_percentage=24h`,
-    { headers: HEADERS },
+    { headers: coingeckoHeaders(env) },
   )
   if (!markets.ok) {
     // Limite atteinte ou panne : on garde les dernières valeurs et on réessaie au prochain passage
     report.coingeckoError = markets.status
+    report.coingeckoDetail = (await markets.text()).slice(0, 200)
     return report
   }
   const now = deps.now()
@@ -98,7 +113,7 @@ export async function collect(env: Env, deps: Deps): Promise<Report> {
     if (i > 0) await deps.sleep(BACKFILL_SPACING_MS)
     const res = await deps.fetch(
       `${COINGECKO}/coins/${encodeURIComponent(id)}/market_chart?vs_currency=eur&days=365`,
-      { headers: HEADERS },
+      { headers: coingeckoHeaders(env) },
     )
     if (!res.ok) {
       report.coingeckoError = res.status

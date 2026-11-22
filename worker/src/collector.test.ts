@@ -98,6 +98,24 @@ describe('collect', () => {
     ])
   })
 
+  it('envoie la clé CoinGecko Demo quand elle est configurée, et seulement alors', async () => {
+    const withKey = fakeNetwork({
+      coins: [{ coin_id: 'a', history_loaded_at: null }],
+    })
+    await collect({ ...ENV, COINGECKO_API_KEY: 'cg-test' }, withKey.deps)
+    const cg = withKey.calls.filter((c) => c.url.includes('coingecko'))
+    expect(cg).toHaveLength(2) // prix + rattrapage
+    for (const c of cg) expect(c.headers['x-cg-demo-api-key']).toBe('cg-test')
+    const supa = withKey.calls.filter((c) => c.url.startsWith('https://db.test'))
+    for (const c of supa) expect(c.headers['x-cg-demo-api-key']).toBeUndefined()
+
+    const without = fakeNetwork({ coins: [{ coin_id: 'a', history_loaded_at: null }] })
+    await collect(ENV, without.deps)
+    for (const c of without.calls.filter((c) => c.url.includes('coingecko'))) {
+      expect(c.headers['x-cg-demo-api-key']).toBeUndefined()
+    }
+  })
+
   it('en cas de limite CoinGecko (429), n’écrit rien et le signale', async () => {
     const net = fakeNetwork({
       coins: [{ coin_id: 'bitcoin', history_loaded_at: null }],
