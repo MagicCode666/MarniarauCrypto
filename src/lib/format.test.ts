@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { formatChange, formatEur, trendOf } from './format'
+import { formatAge, formatChange, formatCompactEur, formatEur, trendOf } from './format'
+
+// Intl met des espaces insécables : on les remplace par « _ » pour comparer lisiblement
+const flat = (s: string) => s.normalize('NFKC').replace(/\s/g, '_')
 
 describe('format', () => {
   it('détermine la tendance', () => {
@@ -14,7 +17,26 @@ describe('format', () => {
     expect(formatChange(0).text).toBe('■ 0,00 %')
   })
 
-  it('formate les euros en français', () => {
-    expect(formatEur(1234.5).replace(/\s/g, ' ')).toBe('1 234,50 €')
+  it('ne présente pas comme hausse une variation qui s’affiche 0,00 %', () => {
+    expect(formatChange(0.001)).toEqual({ text: '■ 0,00 %', trend: 'flat', label: 'stable' })
+    expect(formatChange(-0.004).trend).toBe('flat')
+  })
+
+  it('formate les euros en français, avec plus de décimales pour les petits prix', () => {
+    expect(flat(formatEur(1234.5))).toBe('1_234,50_€')
+    expect(flat(formatEur(0.1234))).toBe('0,1234_€')
+    expect(flat(formatEur(0.5))).toBe('0,50_€')
+  })
+
+  it('abrège les grands montants', () => {
+    expect(flat(formatCompactEur(1.1159e12))).toMatch(/^1,12_(Bn|billions?)_€$/)
+  })
+
+  it('exprime l’ancienneté d’une donnée', () => {
+    const now = new Date('2026-11-22T12:00:00Z')
+    expect(formatAge('2026-11-22T11:59:40Z', now)).toBe('à l’instant')
+    expect(formatAge('2026-11-22T11:53:00Z', now)).toBe('il y a 7 min')
+    expect(formatAge('2026-11-22T09:00:00Z', now)).toBe('il y a 3 h')
+    expect(formatAge('2026-11-18T12:00:00Z', now)).toBe('il y a 4 j')
   })
 })
