@@ -85,3 +85,66 @@ describe('profiles', () => {
     ).rejects.toThrow(/permission denied/)
   })
 })
+
+describe('catalogue, prix et historique', () => {
+  it('contient les 9 cryptos de départ', async () => {
+    const r = await db.query<{ n: number }>(`select count(*)::int as n from public.coins`)
+    expect(r.rows[0].n).toBe(9)
+  })
+
+  it('un compte connecté lit le catalogue, les prix et l’historique', async () => {
+    await db.exec(`
+      insert into public.prices (coin_id, price_eur, updated_at) values ('bitcoin', 50000, now());
+      insert into public.price_history (coin_id, day, close_eur) values ('bitcoin', '2026-11-01', 49000);
+    `)
+    const c = await asUser(ids.a, `select count(*)::int as n from public.coins`)
+    const p = await asUser(ids.a, `select price_eur from public.prices`)
+    const h = await asUser(ids.a, `select close_eur from public.price_history`)
+    expect(c.rows[0].n).toBe(9)
+    expect(Number(p.rows[0].price_eur)).toBe(50000)
+    expect(Number(h.rows[0].close_eur)).toBe(49000)
+  })
+
+  it('un visiteur anonyme ne lit rien', async () => {
+    for (const t of ['coins', 'prices', 'price_history']) {
+      await db.exec(`set role anon`)
+      await expect(db.query(`select * from public.${t}`)).rejects.toThrow(/permission denied/)
+      await db.exec(`reset role`)
+    }
+  })
+
+  it('un compte connecté ne peut rien écrire (catalogue, prix, historique)', async () => {
+    await expect(
+      asUser(ids.a, `update public.prices set price_eur = 1 where coin_id = 'bitcoin'`),
+    ).rejects.toThrow(/permission denied/)
+    await expect(
+      asUser(ids.a, `insert into public.price_history values ('bitcoin', '2026-11-02', 1)`),
+    ).rejects.toThrow(/permission denied/)
+    await expect(
+      asUser(ids.a, `insert into public.coins (coin_id, symbol, name) values ('x', 'X', 'X')`),
+    ).rejects.toThrow(/permission denied/)
+  })
+
+  it('refuse un prix nul ou négatif', async () => {
+    await expect(
+      db.query(`update public.prices set price_eur = 0 where coin_id = 'bitcoin'`),
+    ).rejects.toThrow(/check/)
+  })
+
+  it('limite le catalogue à 20 cryptos actives', async () => {
+    for (let i = 0; i < 11; i++) {
+      await db.query(`insert into public.coins (coin_id, symbol, name) values ($1, $2, $2)`, [
+        `test-${i}`,
+        `T${i}`,
+      ])
+    }
+    await expect(
+      db.query(`insert into public.coins (coin_id, symbol, name) values ('test-trop', 'TT', 'TT')`),
+    ).rejects.toThrow(/limité à 20/)
+    // une crypto désactivée ne compte pas
+    await db.query(`update public.coins set active = false where coin_id = 'test-0'`)
+    await db.query(
+      `insert into public.coins (coin_id, symbol, name) values ('test-ok', 'OK', 'OK')`,
+    )
+  })
+})

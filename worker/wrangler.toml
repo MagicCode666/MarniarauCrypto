@@ -1,0 +1,14 @@
+name = "marniaraucrypto-collector"
+main = "src/index.ts"
+compatibility_date = "2026-11-01"
+preview_urls = false
+workers_dev = false
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[vars]
+SUPABASE_URL = "https://iwkbrawpqyfuldkekpkm.supabase.co"
+
+# Secret à poser une fois, sans jamais l'écrire dans un fichier :
+#   npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY
