@@ -1,0 +1,17 @@
+# Config locale de l'assistant
+.claude/
+
+# Logs
+*.log
+
+# Base SQLite locale (recréée au démarrage)
+*.db
+*.db-journal
+
+# Python
+__pycache__/
+*.pyc
+
+# Frontend
+node_modules/
+dist/
