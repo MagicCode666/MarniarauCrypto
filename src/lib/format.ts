@@ -55,3 +55,15 @@ export function formatAge(iso: string, now: Date): string {
   if (hours < 48) return `il y a ${hours} h`
   return `il y a ${Math.floor(hours / 24)} j`
 }
+
+/** Nombre signé sans unité (« +12,3 », « −0,00123 »), précision adaptée à l'ordre de grandeur. */
+export function formatSigned(value: number): string {
+  const abs = Math.abs(value)
+  const text =
+    abs >= 1000
+      ? abs.toLocaleString('fr-FR', { maximumFractionDigits: 0 })
+      : abs >= 1
+        ? abs.toLocaleString('fr-FR', { maximumFractionDigits: 2 })
+        : abs.toLocaleString('fr-FR', { maximumSignificantDigits: 3 })
+  return `${value > 0 ? '+' : value < 0 ? '−' : ''}${text}`
+}

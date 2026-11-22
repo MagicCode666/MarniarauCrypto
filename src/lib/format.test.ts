@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { formatAge, formatChange, formatCompactEur, formatEur, trendOf } from './format'
+import {
+  formatAge,
+  formatChange,
+  formatCompactEur,
+  formatEur,
+  formatSigned,
+  trendOf,
+} from './format'
 
 // Intl met des espaces insécables : on les remplace par « _ » pour comparer lisiblement
 const flat = (s: string) => s.normalize('NFKC').replace(/\s/g, '_')
@@ -30,6 +37,14 @@ describe('format', () => {
 
   it('abrège les grands montants', () => {
     expect(flat(formatCompactEur(1.1159e12))).toMatch(/^1,12_(Bn|billions?)_€$/)
+  })
+
+  it('formate un nombre signé avec une précision adaptée à son ordre de grandeur', () => {
+    expect(flat(formatSigned(12.345))).toBe('+12,35')
+    expect(flat(formatSigned(-4.2))).toBe('−4,2')
+    expect(flat(formatSigned(1234.6))).toBe('+1_235')
+    expect(flat(formatSigned(-0.001234))).toBe('−0,00123')
+    expect(formatSigned(0)).toBe('0')
   })
 
   it('exprime l’ancienneté d’une donnée', () => {
