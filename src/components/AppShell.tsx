@@ -6,6 +6,7 @@ import { DISCLAIMER } from '../lib/signalTexts'
 const TABS = [
   { to: '/', label: 'Prix', end: true },
   { to: '/signaux', label: 'Signaux', end: false },
+  { to: '/portefeuille', label: 'Portefeuille', end: false },
 ] as const
 
 /** Cadre commun des écrans connectés : titre, onglets, déconnexion, pied de page. */

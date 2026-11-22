@@ -3,7 +3,7 @@
 PWA familiale de suivi, d'analyse et de simulation d'investissement crypto, pour apprendre.
 **Outil éducatif : les signaux et simulations ne constituent pas des conseils financiers.**
 
-Architecture et jalons : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Collecteur de prix : [docs/COLLECTEUR.md](docs/COLLECTEUR.md). Signaux : [docs/SIGNAUX.md](docs/SIGNAUX.md). Mise en route : [docs/MISE-EN-ROUTE.md](docs/MISE-EN-ROUTE.md).
+Architecture et jalons : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Collecteur de prix : [docs/COLLECTEUR.md](docs/COLLECTEUR.md). Signaux : [docs/SIGNAUX.md](docs/SIGNAUX.md). Portefeuille : [docs/PORTEFEUILLE.md](docs/PORTEFEUILLE.md). Mise en route : [docs/MISE-EN-ROUTE.md](docs/MISE-EN-ROUTE.md).
 
 ## Développement
 
