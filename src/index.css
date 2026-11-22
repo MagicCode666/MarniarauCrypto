@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+/*
+ * Thème sombre, sobre. Palette Okabe-Ito (lisible en cas de daltonisme) : la hausse et la baisse
+ * ne reposent jamais sur la couleur seule, elles portent aussi un signe (▲ ▼) et un libellé.
+ */
+@theme {
+  --color-bg: #0f1419;
+  --color-surface: #18202a;
+  --color-line: #2a3644;
+  --color-text: #e6edf3;
+  --color-muted: #93a1b0;
+  --color-accent: #56b4e9;
+  --color-up: #56b4e9;
+  --color-down: #e69f00;
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
