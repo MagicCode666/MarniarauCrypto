@@ -3,7 +3,7 @@
 ## 1. Projet Supabase
 
 1. Créer un projet Supabase dédié (nom `marniaraucrypto`, région proche, mot de passe de base fort).
-2. Authentication > URL Configuration : `Site URL` = `https://magiccode666.github.io/MarniarauCrypto-dist/`,
+2. Authentication > URL Configuration : `Site URL` = `https://magiccode666.github.io/MarniarauCrypto/`,
    et ajouter `http://localhost:5173` aux URL de redirection.
 3. Relever l'URL du projet et la clé publique (anon / publishable). Jamais la clé `service_role` dans le code.
 4. Lier et appliquer le schéma :
@@ -14,14 +14,19 @@
    ```
 5. Copier `.env.example` en `.env.local` et y mettre l'URL et la clé publique.
 
-## 2. Dépôt de distribution
+## 2. Dépôt GitHub et publication
 
-1. Créer le dépôt **public** `MagicCode666/MarniarauCrypto-dist` (un fichier d'accueil suffit).
-2. Settings > Pages : source = branche `main`, dossier racine.
-3. Créer un jeton fine-grained limité à ce dépôt (Contents : lecture et écriture).
+Le code et le site sont dans **un seul dépôt** : `MagicCode666/MarniarauCrypto`. Il est public : il ne
+contient aucun secret (la clé `service_role` est dans le Worker Cloudflare, jamais dans le dépôt ; l'URL
+Supabase et la clé « publishable » sont publiques par conception, la sécurité repose sur les règles de la base).
 
-## 3. Dépôt privé : variables et secrets GitHub
-
-- Variables : `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (publiques).
-- Secret : `DIST_DEPLOY_TOKEN` (le jeton ci-dessus).
+- Settings > Pages : source = **GitHub Actions**.
+- Variables du dépôt (Settings > Secrets and variables > Actions > Variables) :
+  `VITE_SUPABASE_URL` et `VITE_SUPABASE_ANON_KEY` (publiques).
+- Un push sur `main` lance `.github/workflows/deploy.yml` : build puis publication sur
+  `https://magiccode666.github.io/MarniarauCrypto/`. Aucun jeton n'est nécessaire.
 - Protéger `main` (PR obligatoire, CI requise) comme pour BDbyNico.
+- Activer le secret scanning et la protection au push (gratuits sur un dépôt public).
+
+Avant de rendre un dépôt public, rechercher des secrets dans **tout l'historique**, pas seulement dans les
+fichiers actuels (voir l'historique de cette décision dans les notes du projet).
