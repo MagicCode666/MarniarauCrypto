@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { estimateBuy, estimateSell, parseDecimal, valuePortfolio } from './portfolio'
+import {
+  authorLabel,
+  canTrade,
+  estimateBuy,
+  estimateSell,
+  inviteLink,
+  invitationStatus,
+  parseDecimal,
+  ROLE_LABEL,
+  valuePortfolio,
+  type Invitation,
+  type Member,
+} from './portfolio'
 
 describe('estimateBuy / estimateSell (mêmes chiffres que les tests de la base)', () => {
   it('achat de 1 000 € à 50 000 € avec 0,5 % de frais', () => {
@@ -93,5 +105,52 @@ describe('parseDecimal', () => {
     expect(parseDecimal('10,001', 2)).toBeNull()
     expect(parseDecimal('0,000000000001', 12)).toBe(1e-12)
     expect(parseDecimal('0,0000000000001', 12)).toBeNull()
+  })
+})
+
+describe('rôles et partage', () => {
+  it('propriétaire et éditeurs tradent, les lecteurs consultent seulement', () => {
+    expect(canTrade('owner')).toBe(true)
+    expect(canTrade('editor')).toBe(true)
+    expect(canTrade('viewer')).toBe(false)
+  })
+
+  it('nomme les rôles en français', () => {
+    expect(ROLE_LABEL).toEqual({ owner: 'Propriétaire', editor: 'Éditeur', viewer: 'Lecteur' })
+  })
+
+  it('retrouve le pseudo de l’auteur, « Ancien membre » s’il n’est plus membre', () => {
+    const members: Member[] = [{ userId: 'u1', pseudo: 'Nico', role: 'owner' }]
+    expect(authorLabel('u1', members)).toBe('Nico')
+    expect(authorLabel('parti', members)).toBe('Ancien membre')
+    expect(authorLabel(null, members)).toBe('Ancien membre')
+  })
+
+  it('construit un lien dont le code est après le « # » (jamais envoyé aux serveurs)', () => {
+    expect(inviteLink('abc', 'https://exemple.test', '/MarniarauCrypto-dist/')).toBe(
+      'https://exemple.test/MarniarauCrypto-dist/#/rejoindre?code=abc',
+    )
+  })
+
+  it('détermine l’état d’une invitation (utilisée > révoquée > expirée > en attente)', () => {
+    const now = new Date('2026-11-22T12:00:00Z')
+    const base: Invitation = {
+      id: 'i',
+      role: 'editor',
+      createdAt: '2026-11-20T12:00:00Z',
+      expiresAt: '2026-11-25T12:00:00Z',
+      usedAt: null,
+      revokedAt: null,
+    }
+    expect(invitationStatus(base, now)).toBe('pending')
+    expect(invitationStatus({ ...base, expiresAt: '2026-11-22T11:59:59Z' }, now)).toBe('expired')
+    expect(invitationStatus({ ...base, revokedAt: '2026-11-21T00:00:00Z' }, now)).toBe('revoked')
+    expect(invitationStatus({ ...base, usedAt: '2026-11-21T00:00:00Z' }, now)).toBe('used')
+    expect(
+      invitationStatus(
+        { ...base, usedAt: '2026-11-21T00:00:00Z', revokedAt: '2026-11-21T01:00:00Z' },
+        now,
+      ),
+    ).toBe('used')
   })
 })

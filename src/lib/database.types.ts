@@ -62,6 +62,20 @@ export type Database = {
         Update: never
         Relationships: []
       }
+      portfolio_invitations: {
+        Row: {
+          id: string
+          portfolio_id: string
+          role: 'editor' | 'viewer'
+          created_at: string
+          expires_at: string
+          used_at: string | null
+          revoked_at: string | null
+        }
+        Insert: never
+        Update: never
+        Relationships: []
+      }
       transactions: {
         Row: {
           id: number
@@ -97,6 +111,36 @@ export type Database = {
         Returns: Database['public']['Tables']['transactions']['Row']
       }
       reset_portfolio: { Args: { p_portfolio: string }; Returns: string }
+      my_portfolios: {
+        Args: Record<string, never>
+        Returns: {
+          id: string
+          name: string
+          kind: 'personal' | 'shared'
+          role: 'owner' | 'editor' | 'viewer'
+          initial_cash: number
+          fee_rate: number
+          member_count: number
+        }[]
+      }
+      list_members: {
+        Args: { p_portfolio: string }
+        Returns: { user_id: string; pseudo: string; role: 'owner' | 'editor' | 'viewer' }[]
+      }
+      create_shared_portfolio: { Args: { p_name: string }; Returns: string }
+      create_invitation: {
+        Args: { p_portfolio: string; p_role: string; p_days?: number }
+        Returns: string
+      }
+      revoke_invitation: { Args: { p_invitation: string }; Returns: undefined }
+      join_portfolio: { Args: { p_token: string }; Returns: string }
+      remove_member: { Args: { p_portfolio: string; p_user: string }; Returns: undefined }
+      set_member_role: {
+        Args: { p_portfolio: string; p_user: string; p_role: string }
+        Returns: undefined
+      }
+      leave_portfolio: { Args: { p_portfolio: string }; Returns: undefined }
+      archive_portfolio: { Args: { p_portfolio: string }; Returns: undefined }
     }
     Enums: Record<string, never>
     CompositeTypes: Record<string, never>

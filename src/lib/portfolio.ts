@@ -2,17 +2,60 @@
 // (supabase/migrations/20261122120000_portfolios.sql) : ici on ne fait que des estimations
 // d'affichage et la valorisation aux prix du moment.
 
+export type Role = 'owner' | 'editor' | 'viewer'
+export type PortfolioKind = 'personal' | 'shared'
+
+export const ROLE_LABEL: Record<Role, string> = {
+  owner: 'Propriétaire',
+  editor: 'Éditeur',
+  viewer: 'Lecteur',
+}
+
+/** Acheter et vendre : propriétaire et éditeurs. Les lecteurs consultent seulement. */
+export const canTrade = (role: Role): boolean => role === 'owner' || role === 'editor'
+
 export type PortfolioInfo = {
   id: string
   name: string
+  kind: PortfolioKind
+  /** Rôle de l'utilisateur connecté dans ce portefeuille. */
+  role: Role
   initialCash: number
   feeRate: number
+  memberCount: number
+}
+
+export type Member = { userId: string; pseudo: string; role: Role }
+
+export type Invitation = {
+  id: string
+  role: 'editor' | 'viewer'
+  createdAt: string
+  expiresAt: string
+  usedAt: string | null
+  revokedAt: string | null
+}
+
+export type InvitationStatus = 'pending' | 'used' | 'revoked' | 'expired'
+
+export function invitationStatus(inv: Invitation, now: Date): InvitationStatus {
+  if (inv.usedAt) return 'used'
+  if (inv.revokedAt) return 'revoked'
+  if (new Date(inv.expiresAt) <= now) return 'expired'
+  return 'pending'
+}
+
+/** Pseudo à afficher pour l'auteur d'une transaction ; un ancien membre n'est plus lisible. */
+export function authorLabel(userId: string | null, members: Member[]): string {
+  const m = members.find((x) => x.userId === userId)
+  return m ? m.pseudo : 'Ancien membre'
 }
 
 export type Position = { coinId: string; quantity: number; avgBuyPriceEur: number }
 
 export type Transaction = {
   id: number
+  userId: string | null
   coinId: string
   side: 'buy' | 'sell'
   quantity: number
@@ -123,4 +166,9 @@ export function parseDecimal(text: string, maxDecimals: number): number | null {
   if (decimals > maxDecimals) return null
   const v = Number(t)
   return v > 0 && Number.isFinite(v) ? v : null
+}
+
+/** Lien d'invitation : le code est après le « # », qui n'est jamais envoyé aux serveurs. */
+export function inviteLink(token: string, origin: string, basePath: string): string {
+  return `${origin}${basePath}#/rejoindre?code=${token}`
 }

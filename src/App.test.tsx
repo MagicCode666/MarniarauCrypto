@@ -5,6 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('./lib/supabase', () => ({ supabase: { auth: { signOut: vi.fn() } } }))
 const useAuth = vi.fn()
 vi.mock('./auth/AuthProvider', () => ({ useAuth: () => useAuth() }))
+vi.mock('./hooks/usePseudo', () => ({
+  usePseudo: () => ({ pseudo: 'Nico', userId: 'u1', reload: vi.fn() }),
+}))
+vi.mock('./hooks/usePortfolio', () => ({ SELECTED_KEY: 'marniarau:portfolio' }))
 const closes = vi.fn()
 vi.mock('./hooks/useCloses', () => ({ useCloses: () => closes() }))
 const useMarket = vi.fn()
@@ -34,6 +38,7 @@ const bitcoin = {
 }
 
 describe('routes', () => {
+  beforeEach(() => sessionStorage.clear())
   beforeEach(() =>
     closes.mockReturnValue({ bitcoin: Array.from({ length: 60 }, (_, i) => 10 + i) }),
   )
@@ -96,5 +101,27 @@ describe('routes', () => {
     renderAt('/')
     expect(screen.getByText('Bitcoin')).toBeTruthy()
     expect(screen.getByText(/Actualisation impossible/)).toBeTruthy()
+  })
+  it('lien d’invitation ouvert sans être connecté : le code est gardé et la connexion proposée', () => {
+    useAuth.mockReturnValue({ session: null, loading: false })
+    renderAt('/rejoindre?code=abc123')
+    expect(screen.getByRole('button', { name: 'Se connecter' })).toBeTruthy()
+    expect(sessionStorage.getItem('marniarau:join-code')).toBe('abc123')
+  })
+
+  it('après la connexion, un code gardé propose de rejoindre, sans rejoindre automatiquement', () => {
+    useAuth.mockReturnValue({ session: { user: { id: 'u1' } }, loading: false })
+    useMarket.mockReturnValue({ status: 'ready', market: { coins: [], updatedAt: null } })
+    sessionStorage.setItem('marniarau:join-code', 'garde42')
+    renderAt('/')
+    expect(screen.getByRole('heading', { name: 'Rejoindre un portefeuille partagé' })).toBeTruthy()
+    expect((screen.getByLabelText(/Code d’invitation/) as HTMLInputElement).value).toBe('garde42')
+  })
+
+  it('affiche le pseudo dans l’en-tête et propose de le modifier', () => {
+    useAuth.mockReturnValue({ session: { user: { id: 'u1' } }, loading: false })
+    useMarket.mockReturnValue({ status: 'ready', market: { coins: [], updatedAt: null } })
+    renderAt('/')
+    expect(screen.getByRole('button', { name: 'Nico' })).toBeTruthy()
   })
 })

@@ -2,17 +2,39 @@ import { useMemo, useState } from 'react'
 import { useOutletContext } from 'react-router-dom'
 import { BuyModal } from '../components/BuyModal'
 import { Change } from '../components/Change'
+import { CreateSharedModal } from '../components/CreateSharedModal'
+import { InviteModal } from '../components/InviteModal'
+import { JoinForm } from '../components/JoinForm'
 import { MarketStatus } from '../components/MarketStatus'
+import { MembersModal } from '../components/MembersModal'
+import { Modal } from '../components/Modal'
 import { PnlEur } from '../components/PnlEur'
+import { PseudoModal } from '../components/PseudoModal'
 import { ResetModal } from '../components/ResetModal'
 import { SellModal } from '../components/SellModal'
-import { usePortfolio } from '../hooks/usePortfolio'
 import type { MarketState } from '../hooks/useMarket'
+import { usePortfolio } from '../hooks/usePortfolio'
+import { usePseudo } from '../hooks/usePseudo'
 import { formatEur, formatQuantity } from '../lib/format'
-import { valuePortfolio, type Transaction } from '../lib/portfolio'
+import {
+  authorLabel,
+  canTrade,
+  ROLE_LABEL,
+  valuePortfolio,
+  type Transaction,
+} from '../lib/portfolio'
 import { DISCLAIMER } from '../lib/signalTexts'
 
-type Modal = { kind: 'buy' } | { kind: 'sell'; coinId: string } | { kind: 'reset' } | null
+type ModalState =
+  | { kind: 'buy' }
+  | { kind: 'sell'; coinId: string }
+  | { kind: 'reset' }
+  | { kind: 'create' }
+  | { kind: 'join' }
+  | { kind: 'members' }
+  | { kind: 'invite' }
+  | { kind: 'pseudo' }
+  | null
 
 const dateFr = (iso: string) =>
   new Date(iso).toLocaleString('fr-FR', {
@@ -46,11 +68,12 @@ function Tile({
   )
 }
 
-/** Écran « Portefeuille » : simulation à 10 000 €, achats et ventes aux prix du moment. */
+/** Écran « Portefeuille » : simulation à 10 000 €, personnelle ou partagée, aux prix du moment. */
 export function PortfolioPage() {
   const market = useOutletContext<MarketState>()
   const pf = usePortfolio()
-  const [modal, setModal] = useState<Modal>(null)
+  const { pseudo, userId, reload: reloadPseudo } = usePseudo()
+  const [modal, setModal] = useState<ModalState>(null)
   const [notice, setNotice] = useState<string | null>(null)
 
   const coins = useMemo(() => market.market?.coins ?? [], [market.market])
@@ -61,6 +84,9 @@ export function PortfolioPage() {
   )
 
   const data = pf.data
+  const info = data?.portfolio
+  const shared = info?.kind === 'shared'
+  const mayTrade = info ? canTrade(info.role) : false
   const valuation = useMemo(
     () =>
       data ? valuePortfolio(data.cash, data.portfolio.initialCash, data.positions, prices) : null,
@@ -78,6 +104,9 @@ export function PortfolioPage() {
 
   const sellPosition =
     modal?.kind === 'sell' ? valuation?.positions.find((p) => p.coinId === modal.coinId) : undefined
+
+  const editPseudo = () => setModal({ kind: 'pseudo' })
+  const backTo = (m: ModalState) => () => setModal(m)
 
   return (
     <main className="flex flex-col gap-5">
@@ -103,14 +132,73 @@ export function PortfolioPage() {
         </p>
       )}
 
-      {data && valuation && (
+      {pf.portfolios.length > 0 && info && (
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            aria-label="Portefeuille"
+            value={info.id}
+            onChange={(e) => {
+              setNotice(null)
+              void pf.refresh(e.target.value)
+            }}
+            className="rounded border border-line bg-surface p-2 text-sm"
+          >
+            {pf.portfolios.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+                {p.kind === 'shared' ? ' · partagé' : ''}
+              </option>
+            ))}
+          </select>
+          {shared && (
+            <>
+              <span className="rounded-full border border-line px-2 py-0.5 text-xs text-muted">
+                {ROLE_LABEL[info.role]}
+              </span>
+              <button
+                type="button"
+                onClick={() => setModal({ kind: 'members' })}
+                className="rounded border border-line px-3 py-1 text-sm"
+              >
+                Membres ({info.memberCount})
+              </button>
+              {info.role === 'owner' && (
+                <button
+                  type="button"
+                  onClick={() => setModal({ kind: 'invite' })}
+                  className="rounded border border-line px-3 py-1 text-sm"
+                >
+                  Inviter
+                </button>
+              )}
+            </>
+          )}
+          <span className="flex-1" />
+          <button
+            type="button"
+            onClick={() => setModal({ kind: 'create' })}
+            className="rounded border border-line px-3 py-1 text-sm"
+          >
+            Nouveau portefeuille partagé
+          </button>
+          <button
+            type="button"
+            onClick={() => setModal({ kind: 'join' })}
+            className="rounded border border-line px-3 py-1 text-sm"
+          >
+            Rejoindre avec un code
+          </button>
+        </div>
+      )}
+
+      {data && valuation && info && (
         <>
           <dl className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Tile label="Valeur totale">{formatEur(valuation.totalValueEur)}</Tile>
             <Tile label="Cash">{formatEur(valuation.cashEur)}</Tile>
             <Tile
               label="Performance depuis le départ"
-              hint={`Valeur totale − ${formatEur(data.portfolio.initialCash)} de départ, frais compris.`}
+              hint={`Valeur totale − ${formatEur(info.initialCash)} de départ, frais compris.`}
             >
               <PnlEur value={valuation.performanceEur} />
               <div className="text-sm">
@@ -141,29 +229,38 @@ export function PortfolioPage() {
             </p>
           )}
 
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setModal({ kind: 'buy' })}
-              className="rounded bg-accent px-4 py-2 font-medium text-bg"
-            >
-              Acheter
-            </button>
-            <button
-              type="button"
-              onClick={() => setModal({ kind: 'reset' })}
-              className="rounded border border-line px-4 py-2 text-sm"
-            >
-              Remise à zéro
-            </button>
-          </div>
+          {mayTrade ? (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setModal({ kind: 'buy' })}
+                className="rounded bg-accent px-4 py-2 font-medium text-bg"
+              >
+                Acheter
+              </button>
+              {info.role === 'owner' && (
+                <button
+                  type="button"
+                  onClick={() => setModal({ kind: 'reset' })}
+                  className="rounded border border-line px-4 py-2 text-sm"
+                >
+                  Remise à zéro
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="rounded border border-line bg-surface p-3 text-sm text-muted">
+              Lecture seule : tu peux consulter ce portefeuille, mais pas acheter ni vendre.
+            </p>
+          )}
 
           <section>
             <h2 className="mb-2 text-lg font-semibold">Positions</h2>
             {valuation.positions.length === 0 ? (
               <p className="text-sm text-muted">
-                Aucune position. Achète une crypto pour commencer ({formatEur(valuation.cashEur)}{' '}
-                disponibles).
+                Aucune position.
+                {mayTrade &&
+                  ` Achète une crypto pour commencer (${formatEur(valuation.cashEur)} disponibles).`}
               </p>
             ) : (
               <div className="overflow-x-auto rounded-lg border border-line">
@@ -220,14 +317,16 @@ export function PortfolioPage() {
                           <Change pct={p.pnlPct} />
                         </td>
                         <td className="px-3 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => setModal({ kind: 'sell', coinId: p.coinId })}
-                            className="rounded border border-line px-3 py-1 text-xs"
-                            aria-label={`Vendre ${nameOf(p.coinId)}`}
-                          >
-                            Vendre
-                          </button>
+                          {mayTrade && (
+                            <button
+                              type="button"
+                              onClick={() => setModal({ kind: 'sell', coinId: p.coinId })}
+                              className="rounded border border-line px-3 py-1 text-xs"
+                              aria-label={`Vendre ${nameOf(p.coinId)}`}
+                            >
+                              Vendre
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -246,23 +345,34 @@ export function PortfolioPage() {
                 <table className="w-full border-collapse text-sm">
                   <thead className="bg-surface text-xs uppercase tracking-wide text-muted">
                     <tr>
-                      {['Date', 'Type', 'Crypto', 'Quantité', 'Prix', 'Frais', 'Total', 'Note'].map(
-                        (h, i) => (
-                          <th
-                            key={h}
-                            scope="col"
-                            className={`px-3 py-2 font-medium ${i < 3 || i === 7 ? 'text-left' : 'text-right'}`}
-                          >
-                            {h}
-                          </th>
-                        ),
-                      )}
+                      {[
+                        'Date',
+                        ...(shared ? ['Par'] : []),
+                        'Type',
+                        'Crypto',
+                        'Quantité',
+                        'Prix',
+                        'Frais',
+                        'Total',
+                        'Note',
+                      ].map((h) => (
+                        <th
+                          key={h}
+                          scope="col"
+                          className={`px-3 py-2 font-medium ${['Date', 'Par', 'Type', 'Crypto', 'Note'].includes(h) ? 'text-left' : 'text-right'}`}
+                        >
+                          {h}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {pf.transactions.map((tx) => (
                       <tr key={tx.id} className="border-t border-line">
                         <td className="whitespace-nowrap px-3 py-2">{dateFr(tx.createdAt)}</td>
+                        {shared && (
+                          <td className="px-3 py-2">{authorLabel(tx.userId, pf.members)}</td>
+                        )}
                         <td className="px-3 py-2 font-medium">
                           {tx.side === 'buy' ? 'Achat' : 'Vente'}
                         </td>
@@ -298,8 +408,9 @@ export function PortfolioPage() {
           </section>
 
           <p className="text-xs text-muted">
-            Frais simulés de {(data.portfolio.feeRate * 100).toLocaleString('fr-FR')} % par achat et
-            par vente, indicatifs : une vraie plateforme applique ses propres frais.
+            Frais simulés de {(info.feeRate * 100).toLocaleString('fr-FR')} % par achat et par
+            vente, indicatifs : une vraie plateforme applique ses propres frais.
+            {shared && ' Les opérations des autres membres apparaissent en moins d’une minute.'}
           </p>
         </>
       )}
@@ -333,6 +444,69 @@ export function PortfolioPage() {
           onDone={() => {
             setModal(null)
             setNotice('Portefeuille archivé : un nouveau repart à zéro.')
+            void pf.refresh()
+          }}
+        />
+      )}
+      {modal?.kind === 'create' && (
+        <CreateSharedModal
+          pseudo={pseudo}
+          onEditPseudo={editPseudo}
+          onClose={() => setModal(null)}
+          onCreated={(id) => {
+            setModal(null)
+            setNotice('Portefeuille partagé créé : invite maintenant les personnes de ton choix.')
+            void pf.refresh(id)
+          }}
+        />
+      )}
+      {modal?.kind === 'join' && (
+        <Modal title="Rejoindre avec un code" onClose={() => setModal(null)}>
+          <div className="mt-4">
+            <JoinForm
+              pseudo={pseudo}
+              onEditPseudo={editPseudo}
+              onJoined={(id) => {
+                setModal(null)
+                setNotice('Tu as rejoint le portefeuille partagé.')
+                void pf.refresh(id)
+              }}
+            />
+          </div>
+        </Modal>
+      )}
+      {data && shared && modal?.kind === 'members' && (
+        <MembersModal
+          portfolio={data.portfolio}
+          members={pf.members}
+          currentUserId={userId}
+          onClose={() => setModal(null)}
+          onInvite={backTo({ kind: 'invite' })}
+          onChanged={() => void pf.refresh()}
+          onGone={() => {
+            setModal(null)
+            setNotice('Tu ne consultes plus ce portefeuille partagé.')
+            void pf.refresh()
+          }}
+        />
+      )}
+      {data && shared && modal?.kind === 'invite' && (
+        <InviteModal
+          portfolio={data.portfolio}
+          pseudo={pseudo}
+          onEditPseudo={editPseudo}
+          onClose={() => setModal(null)}
+          onCreated={() => void pf.refresh()}
+        />
+      )}
+      {modal?.kind === 'pseudo' && userId && pseudo !== null && (
+        <PseudoModal
+          userId={userId}
+          current={pseudo}
+          onClose={() => setModal(null)}
+          onSaved={() => {
+            setModal(null)
+            reloadPseudo()
             void pf.refresh()
           }}
         />
