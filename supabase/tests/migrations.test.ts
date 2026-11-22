@@ -7,11 +7,12 @@ import { beforeAll, describe, expect, it } from 'vitest'
 // (schéma auth, rôles, auth.uid()). Aucun secret, aucun réseau.
 const STUB = `
   create role anon nologin; create role authenticated nologin;
+  create role service_role nologin bypassrls;
   create schema auth;
   create table auth.users (id uuid primary key default gen_random_uuid(), email text);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
-  grant usage on schema auth, public to anon, authenticated;
+  grant usage on schema auth, public to anon, authenticated, service_role;
   grant execute on function auth.uid() to anon, authenticated;
 `
 
@@ -146,5 +147,51 @@ describe('catalogue, prix et historique', () => {
     await db.query(
       `insert into public.coins (coin_id, symbol, name) values ('test-ok', 'OK', 'OK')`,
     )
+  })
+})
+
+describe('collecteur (service_role)', () => {
+  async function asService(sql: string) {
+    await db.exec(`set role service_role`)
+    try {
+      return await db.query<Record<string, unknown>>(sql)
+    } finally {
+      await db.exec(`reset role`)
+    }
+  }
+
+  async function execAsService(sql: string) {
+    await db.exec(`set role service_role`)
+    try {
+      await db.exec(sql)
+    } finally {
+      await db.exec(`reset role`)
+    }
+  }
+
+  it('lit le catalogue, écrit les prix et l’historique, marque l’historique chargé', async () => {
+    const c = await asService(`select count(*)::int as n from public.coins where active`)
+    expect(c.rows[0].n).toBeGreaterThan(0)
+    await execAsService(`
+      insert into public.prices (coin_id, price_eur, updated_at) values ('ethereum', 2000, now())
+        on conflict (coin_id) do update set price_eur = excluded.price_eur;
+      insert into public.price_history (coin_id, day, close_eur) values ('ethereum', '2026-11-03', 1900)
+        on conflict (coin_id, day) do update set close_eur = excluded.close_eur;
+      update public.coins set history_loaded_at = now() where coin_id = 'ethereum';
+    `)
+    const r = await db.query<{ n: number }>(
+      `select count(*)::int as n from public.coins where history_loaded_at is not null`,
+    )
+    expect(r.rows[0].n).toBe(1)
+  })
+
+  it('ne peut pas modifier ni supprimer le catalogue lui-même', async () => {
+    await expect(asService(`update public.coins set active = false`)).rejects.toThrow(
+      /permission denied/,
+    )
+    await expect(asService(`delete from public.coins`)).rejects.toThrow(/permission denied/)
+    await expect(
+      asService(`insert into public.coins (coin_id, symbol, name) values ('z', 'Z', 'Z')`),
+    ).rejects.toThrow(/permission denied/)
   })
 })
