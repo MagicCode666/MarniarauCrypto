@@ -2,16 +2,31 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { MemoryRouter, Outlet, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { CoinView } from '../lib/market'
-import type { Transaction } from '../lib/portfolio'
+import type { Member, PortfolioInfo, Role, Transaction } from '../lib/portfolio'
 
 vi.mock('../lib/supabase', () => ({ supabase: {} }))
+vi.mock('../hooks/usePseudo', () => ({
+  usePseudo: () => ({ pseudo: 'Nico', userId: 'u1', reload: vi.fn() }),
+}))
 
 const api = vi.hoisted(() => ({
+  listPortfolios: vi.fn(),
   loadPortfolio: vi.fn(),
   loadTransactions: vi.fn(),
+  loadMembers: vi.fn(),
   buyCoin: vi.fn(),
   sellCoin: vi.fn(),
   resetPortfolio: vi.fn(),
+  createSharedPortfolio: vi.fn(),
+  joinPortfolio: vi.fn(),
+  createInvitation: vi.fn(),
+  listInvitations: vi.fn(),
+  revokeInvitation: vi.fn(),
+  removeMember: vi.fn(),
+  setMemberRole: vi.fn(),
+  leavePortfolio: vi.fn(),
+  archivePortfolio: vi.fn(),
+  savePseudo: vi.fn(),
 }))
 vi.mock('../lib/portfolioApi', () => ({
   ...api,
@@ -36,6 +51,7 @@ const coin = (id: string, name: string, symbol: string, price: number): CoinView
 
 const tx = (over: Partial<Transaction> = {}): Transaction => ({
   id: 1,
+  userId: 'u1',
   coinId: 'bitcoin',
   side: 'buy',
   quantity: 0.0199,
@@ -47,12 +63,29 @@ const tx = (over: Partial<Transaction> = {}): Transaction => ({
   ...over,
 })
 
-const data = (over = {}) => ({
-  portfolio: { id: 'pf1', name: 'Mon portefeuille', initialCash: 10000, feeRate: 0.005 },
+const info = (over: Partial<PortfolioInfo> = {}): PortfolioInfo => ({
+  id: 'pf1',
+  name: 'Mon portefeuille',
+  kind: 'personal',
+  role: 'owner',
+  initialCash: 10000,
+  feeRate: 0.005,
+  memberCount: 1,
+  ...over,
+})
+
+const dataFor = (portfolio: PortfolioInfo, over = {}) => ({
+  portfolio,
   cash: 9000,
   positions: [{ coinId: 'bitcoin', quantity: 0.0199, avgBuyPriceEur: 50000 }],
   ...over,
 })
+
+const members: Member[] = [
+  { userId: 'u1', pseudo: 'Nico', role: 'owner' },
+  { userId: 'u2', pseudo: 'Paul', role: 'editor' },
+  { userId: 'u3', pseudo: 'Quentin', role: 'viewer' },
+]
 
 function renderPage() {
   const state = {
@@ -73,10 +106,22 @@ function renderPage() {
   )
 }
 
+/** Configure la base simulée : la liste des portefeuilles et les données de chacun. */
+function setup(list: PortfolioInfo[] = [info()], opts: { transactions?: Transaction[] } = {}) {
+  api.listPortfolios.mockResolvedValue(list)
+  api.loadPortfolio.mockImplementation((p: PortfolioInfo) => Promise.resolve(dataFor(p)))
+  api.loadTransactions.mockResolvedValue(opts.transactions ?? [tx()])
+  api.loadMembers.mockResolvedValue(members)
+  api.listInvitations.mockResolvedValue([])
+}
+
+const sharedAs = (role: Role, over: Partial<PortfolioInfo> = {}) =>
+  info({ id: 'pf2', name: 'Famille', kind: 'shared', role, memberCount: 3, ...over })
+
 beforeEach(() => {
   vi.clearAllMocks()
-  api.loadPortfolio.mockResolvedValue(data())
-  api.loadTransactions.mockResolvedValue([tx()])
+  localStorage.clear()
+  setup()
 })
 
 describe('PortfolioPage : affichage', () => {
@@ -96,7 +141,7 @@ describe('PortfolioPage : affichage', () => {
   })
 
   it('invite à acheter quand il n’y a aucune position', async () => {
-    api.loadPortfolio.mockResolvedValue(data({ cash: 10000, positions: [] }))
+    api.loadPortfolio.mockResolvedValue(dataFor(info(), { cash: 10000, positions: [] }))
     api.loadTransactions.mockResolvedValue([])
     renderPage()
     expect(await screen.findByText(/Aucune position/)).toBeTruthy()
@@ -104,9 +149,16 @@ describe('PortfolioPage : affichage', () => {
   })
 
   it('prévient quand le portefeuille ne peut pas être chargé', async () => {
-    api.loadPortfolio.mockRejectedValue(new Error('réseau'))
+    api.listPortfolios.mockRejectedValue(new Error('réseau'))
     renderPage()
     expect(await screen.findByText(/Impossible d’actualiser le portefeuille/)).toBeTruthy()
+  })
+
+  it('un portefeuille personnel n’affiche ni membres ni colonne « Par »', async () => {
+    renderPage()
+    await screen.findByText(/9\s995,00\s€/)
+    expect(screen.queryByRole('button', { name: /Membres/ })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: 'Par' })).toBeNull()
   })
 })
 
@@ -244,5 +296,125 @@ describe('PortfolioPage : remise à zéro', () => {
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Annuler' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(api.resetPortfolio).not.toHaveBeenCalled()
+  })
+})
+
+describe('PortfolioPage : portefeuilles partagés', () => {
+  it('propose de changer de portefeuille et recharge celui choisi', async () => {
+    setup([info(), sharedAs('owner')])
+    renderPage()
+    const select = (await screen.findByLabelText('Portefeuille')) as HTMLSelectElement
+    expect(within(select).getByRole('option', { name: 'Famille · partagé' })).toBeTruthy()
+    fireEvent.change(select, { target: { value: 'pf2' } })
+    await waitFor(() =>
+      expect(api.loadPortfolio).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'pf2' })),
+    )
+    expect(await screen.findByText('Propriétaire')).toBeTruthy()
+    expect(localStorage.getItem('marniarau:portfolio')).toBe('pf2')
+  })
+
+  it('reprend le dernier portefeuille consulté, sinon le premier', async () => {
+    setup([info(), sharedAs('editor')])
+    localStorage.setItem('marniarau:portfolio', 'pf2')
+    renderPage()
+    expect(await screen.findByText('Éditeur')).toBeTruthy()
+    expect(api.loadPortfolio).toHaveBeenCalledWith(expect.objectContaining({ id: 'pf2' }))
+  })
+
+  it('ignore un portefeuille mémorisé qui n’existe plus', async () => {
+    setup([info()])
+    localStorage.setItem('marniarau:portfolio', 'disparu')
+    renderPage()
+    await screen.findByText(/9\s995,00\s€/)
+    expect(api.loadPortfolio).toHaveBeenCalledWith(expect.objectContaining({ id: 'pf1' }))
+  })
+
+  it('propriétaire : membres, invitation, colonne « Par » avec pseudos et ancien membre', async () => {
+    setup([sharedAs('owner')], {
+      transactions: [tx({ id: 3, userId: 'u2' }), tx({ id: 2, userId: 'parti' }), tx({ id: 1 })],
+    })
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'Membres (3)' })).toBeTruthy()
+    expect(screen.getAllByRole('button', { name: 'Inviter' }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('columnheader', { name: 'Par' })).toBeTruthy()
+    const transactions = screen.getByRole('heading', { name: 'Transactions' }).closest('section')!
+    expect(within(transactions).getByText('Paul')).toBeTruthy()
+    expect(within(transactions).getByText('Ancien membre')).toBeTruthy()
+    expect(within(transactions).getByText('Nico')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Remise à zéro' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Acheter' })).toBeTruthy()
+  })
+
+  it('éditeur : peut acheter et vendre, mais ni remettre à zéro ni inviter', async () => {
+    setup([sharedAs('editor')])
+    renderPage()
+    expect(await screen.findByRole('button', { name: 'Acheter' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Vendre Bitcoin' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Remise à zéro' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Inviter' })).toBeNull()
+  })
+
+  it('lecteur : consulte seulement, aucun bouton d’achat, de vente ni de remise à zéro', async () => {
+    setup([sharedAs('viewer')])
+    renderPage()
+    expect(await screen.findByText(/Lecture seule/)).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Acheter' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Vendre Bitcoin' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Remise à zéro' })).toBeNull()
+    expect(screen.getByText('Lecteur')).toBeTruthy()
+  })
+
+  it('crée un portefeuille partagé, rappelle le pseudo, puis le sélectionne', async () => {
+    api.createSharedPortfolio.mockResolvedValue('pf9')
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Nouveau portefeuille partagé' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText(/« Nico »/)).toBeTruthy()
+    fireEvent.change(within(dialog).getByLabelText(/Nom du portefeuille/), {
+      target: { value: '  Famille  ' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Créer' }))
+    await waitFor(() => expect(api.createSharedPortfolio).toHaveBeenCalledWith('Famille'))
+    expect(await screen.findByText(/Portefeuille partagé créé/)).toBeTruthy()
+    expect(api.listPortfolios).toHaveBeenCalledTimes(2)
+  })
+
+  it('refuse un nom vide à la création', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Nouveau portefeuille partagé' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.change(within(dialog).getByLabelText(/Nom du portefeuille/), {
+      target: { value: '   ' },
+    })
+    expect(
+      (within(dialog).getByRole('button', { name: 'Créer' }) as HTMLButtonElement).disabled,
+    ).toBe(true)
+    expect(api.createSharedPortfolio).not.toHaveBeenCalled()
+  })
+
+  it('rejoint avec un code, rappelle le pseudo et affiche le message générique en cas d’échec', async () => {
+    api.joinPortfolio.mockRejectedValueOnce(new Error('Code invalide ou expiré'))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Rejoindre avec un code' }))
+    const dialog = screen.getByRole('dialog')
+    expect(within(dialog).getByText(/« Nico »/)).toBeTruthy()
+    fireEvent.change(within(dialog).getByLabelText(/Code d’invitation/), {
+      target: { value: ' abc123 ' },
+    })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rejoindre' }))
+    expect(await within(dialog).findByText('Code invalide ou expiré')).toBeTruthy()
+    expect(api.joinPortfolio).toHaveBeenCalledWith('abc123')
+
+    api.joinPortfolio.mockResolvedValueOnce('pf2')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rejoindre' }))
+    expect(await screen.findByText(/Tu as rejoint le portefeuille partagé/)).toBeTruthy()
+    expect(api.listPortfolios).toHaveBeenCalledTimes(2)
+  })
+
+  it('« Modifier » dans le rappel ouvre la fenêtre du pseudo', async () => {
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Rejoindre avec un code' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Modifier' }))
+    expect(screen.getByRole('dialog', { name: 'Mon pseudo' })).toBeTruthy()
   })
 })

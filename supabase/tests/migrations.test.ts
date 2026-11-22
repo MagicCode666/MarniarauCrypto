@@ -50,25 +50,38 @@ beforeAll(async () => {
 }, 60_000)
 
 describe('profiles', () => {
-  it('crée un profil à l’inscription, pseudo tiré de l’email', async () => {
-    const r = await db.query<{ pseudo: string }>(
-      `select pseudo from public.profiles order by pseudo`,
-    )
-    expect(r.rows.map((x) => x.pseudo)).toEqual(['alice', 'bob'])
+  it('crée un profil à l’inscription avec un pseudo neutre, pas tiré de l’email', async () => {
+    const r = await db.query<{ pseudo: string }>(`select pseudo from public.profiles`)
+    expect(r.rows).toHaveLength(2)
+    for (const x of r.rows) {
+      expect(x.pseudo).toMatch(/^Membre-\d{4}$/)
+      expect(x.pseudo).not.toMatch(/alice|bob/)
+    }
   })
 
-  it('chacun ne voit que son profil', async () => {
-    const r = await asUser(ids.a, `select pseudo from public.profiles`)
-    expect(r.rows).toEqual([{ pseudo: 'alice' }])
+  it('chacun ne voit que son profil (tant qu’il ne partage aucun portefeuille)', async () => {
+    const r = await asUser(ids.a, `select id from public.profiles`)
+    expect(r.rows).toEqual([{ id: ids.a }])
   })
 
   it('on peut changer son pseudo mais pas celui d’un autre', async () => {
     await asUser(ids.a, `update public.profiles set pseudo = 'Alice' where id = '${ids.a}'`)
     await asUser(ids.a, `update public.profiles set pseudo = 'pirate' where id = '${ids.b}'`)
-    const r = await db.query<{ pseudo: string }>(
-      `select pseudo from public.profiles order by pseudo`,
+    const r = await db.query<{ id: string; pseudo: string }>(
+      `select id, pseudo from public.profiles`,
     )
-    expect(r.rows.map((x) => x.pseudo)).toEqual(['Alice', 'bob'])
+    const byId = Object.fromEntries(r.rows.map((x) => [x.id, x.pseudo]))
+    expect(byId[ids.a]).toBe('Alice')
+    expect(byId[ids.b]).toMatch(/^Membre-\d{4}$/)
+  })
+
+  it('refuse un pseudo avec des espaces au début ou à la fin, ou vide', async () => {
+    await expect(
+      asUser(ids.a, `update public.profiles set pseudo = ' Alice ' where id = '${ids.a}'`),
+    ).rejects.toThrow(/check/)
+    await expect(
+      asUser(ids.a, `update public.profiles set pseudo = '' where id = '${ids.a}'`),
+    ).rejects.toThrow(/check/)
   })
 
   it('un visiteur anonyme n’a aucun accès', async () => {

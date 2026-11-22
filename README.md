@@ -5,7 +5,7 @@ PWA familiale de suivi, d'analyse et de simulation d'investissement crypto, pour
 
 Application : https://magiccode666.github.io/MarniarauCrypto/
 
-Architecture et jalons : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Collecteur de prix : [docs/COLLECTEUR.md](docs/COLLECTEUR.md). Signaux : [docs/SIGNAUX.md](docs/SIGNAUX.md). Portefeuille : [docs/PORTEFEUILLE.md](docs/PORTEFEUILLE.md). Mise en route : [docs/MISE-EN-ROUTE.md](docs/MISE-EN-ROUTE.md).
+Architecture et jalons : [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Collecteur de prix : [docs/COLLECTEUR.md](docs/COLLECTEUR.md). Signaux : [docs/SIGNAUX.md](docs/SIGNAUX.md). Portefeuille : [docs/PORTEFEUILLE.md](docs/PORTEFEUILLE.md). Partage : [docs/PARTAGE.md](docs/PARTAGE.md). Mise en route : [docs/MISE-EN-ROUTE.md](docs/MISE-EN-ROUTE.md).
 
 ## Développement
 
