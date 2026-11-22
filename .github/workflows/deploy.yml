@@ -1,7 +1,7 @@
-name: Publication
+name: Déploiement
 
-# Construit l'application et la publie dans le dépôt public de distribution
-# (MagicCode666/MarniarauCrypto-dist), servi par GitHub Pages. Le code reste dans le dépôt privé.
+# Construit l'application et la publie sur GitHub Pages, depuis ce dépôt :
+# https://magiccode666.github.io/MarniarauCrypto/
 on:
   push:
     branches: [main]
@@ -9,14 +9,16 @@ on:
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-  group: publication
+  group: pages
   cancel-in-progress: false
 
 jobs:
-  publier:
-    name: Build et publication
+  build:
+    name: Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -33,26 +35,17 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
 
-      - name: Publier dans le dépôt de distribution
-        env:
-          DIST_DEPLOY_TOKEN: ${{ secrets.DIST_DEPLOY_TOKEN }}
-          SHA: ${{ github.sha }}
-        run: |
-          if [ -z "$DIST_DEPLOY_TOKEN" ]; then
-            echo "::warning::Secret DIST_DEPLOY_TOKEN absent : rien n'est publié."
-            exit 0
-          fi
-          git clone --depth 1 "https://x-access-token:${DIST_DEPLOY_TOKEN}@github.com/MagicCode666/MarniarauCrypto-dist.git" site
-          find site -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
-          cp -R dist/. site/
-          touch site/.nojekyll
-          cd site
-          git config user.name "Nico"
-          git config user.email "267872670+MagicCode666@users.noreply.github.com"
-          git add -A
-          if git diff --cached --quiet; then
-            echo "Aucun changement à publier."
-            exit 0
-          fi
-          git commit -m "Publication ${SHA::7}"
-          git push origin HEAD:main
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: dist
+
+  deploy:
+    name: Publication sur GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

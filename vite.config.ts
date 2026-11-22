@@ -10,10 +10,10 @@ const { version } = JSON.parse(
 // GitHub Actions fournit le commit déployé ; en local on affiche « dev »
 const commit = process.env.GITHUB_SHA?.slice(0, 7) ?? 'dev'
 
-// L'application est publiée depuis le dépôt de distribution :
-// https://magiccode666.github.io/MarniarauCrypto-dist/
+// L'application est publiée par GitHub Pages depuis ce dépôt :
+// https://magiccode666.github.io/MarniarauCrypto/
 export default defineConfig({
-  base: '/MarniarauCrypto-dist/',
+  base: '/MarniarauCrypto/',
   define: {
     __APP_VERSION__: JSON.stringify(version),
     __APP_COMMIT__: JSON.stringify(commit),
