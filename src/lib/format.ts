@@ -67,3 +67,20 @@ export function formatSigned(value: number): string {
         : abs.toLocaleString('fr-FR', { maximumSignificantDigits: 3 })
   return `${value > 0 ? '+' : value < 0 ? '−' : ''}${text}`
 }
+
+/** Montant en euros avec signe explicite (« +12,34 € », « −5,00 € »). */
+export function formatSignedEur(value: number): string {
+  const sign = value > 0 ? '+' : value < 0 ? '−' : ''
+  return `${sign}${formatEur(Math.abs(value))}`
+}
+
+/** Quantité de crypto : peu de décimales pour les grandes quantités, jusqu'à 8 pour les petites. */
+export function formatQuantity(quantity: number): string {
+  const decimals = quantity >= 1000 ? 2 : quantity >= 1 ? 4 : 8
+  return quantity.toLocaleString('fr-FR', { maximumFractionDigits: decimals })
+}
+
+/** Quantité en texte brut saisissable (sans notation scientifique ni zéros inutiles). */
+export function plainQuantity(quantity: number): string {
+  return quantity.toFixed(12).replace(/0+$/, '').replace(/\.$/, '')
+}
